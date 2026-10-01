@@ -6,6 +6,15 @@ use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+const SPECIAL_WORKSPACE_ID_START: WorkspaceId = -99;
+const SPECIAL_WORKSPACE_ID_END: WorkspaceId = -2;
+
+/// Mirrors Hyprland's `CWorkspaceQueryCore::isSpecial`. Named workspaces are
+/// negative too (from -1337 down), so `id < 0` is not enough.
+fn is_special_id(id: WorkspaceId) -> bool {
+    (SPECIAL_WORKSPACE_ID_START..=SPECIAL_WORKSPACE_ID_END).contains(&id)
+}
+
 /// This pub(crate) enum holds every socket command that returns data
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DataCommands {
@@ -47,7 +56,7 @@ pub struct WorkspaceBasic {
 impl WorkspaceBasic {
     /// If this is a special workspace
     pub fn is_special(&self) -> bool {
-        self.name.starts_with("special:")
+        is_special_id(self.id)
     }
 }
 
@@ -191,7 +200,87 @@ pub struct Workspace {
 impl Workspace {
     /// If this is a special workspace
     pub fn is_special(&self) -> bool {
-        self.name.starts_with("special:")
+        is_special_id(self.id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn workspace(id: WorkspaceId, name: &str) -> Workspace {
+        Workspace {
+            id,
+            name: name.to_owned(),
+            monitor: "DP-1".to_owned(),
+            monitor_id: Some(1),
+            windows: 0,
+            fullscreen: false,
+            last_window: Address::new(0),
+            last_window_title: String::new(),
+            persistent: false,
+            tiled_layout: String::new(),
+        }
+    }
+
+    #[test]
+    fn numbered_workspace_is_not_special() {
+        assert!(!workspace(1, "1").is_special());
+    }
+
+    #[test]
+    fn named_workspace_is_not_special() {
+        assert!(!workspace(-1337, "example").is_special());
+        assert!(!workspace(-1338, "other").is_special());
+    }
+
+    #[test]
+    fn named_workspace_with_special_prefix_is_not_special() {
+        assert!(!workspace(-1337, "special:foo").is_special());
+    }
+
+    #[test]
+    fn special_workspace_is_special() {
+        assert!(workspace(-98, "special:magic").is_special());
+        assert!(workspace(-99, "special:scratch").is_special());
+    }
+
+    #[test]
+    fn special_id_range_is_inclusive_at_both_ends() {
+        assert!(workspace(-99, "special:low").is_special());
+        assert!(workspace(-2, "special:high").is_special());
+    }
+
+    #[test]
+    fn ids_outside_the_special_range_are_not_special() {
+        assert!(!workspace(-1, "special:invalid").is_special());
+        assert!(!workspace(-100, "special:below").is_special());
+    }
+
+    fn basic(id: WorkspaceId, name: &str) -> WorkspaceBasic {
+        WorkspaceBasic {
+            id,
+            name: name.to_owned(),
+        }
+    }
+
+    #[test]
+    fn workspace_basic_agrees_with_workspace() {
+        for (id, name) in [
+            (1, "1"),
+            (-1337, "example"),
+            (-1337, "special:foo"),
+            (-98, "special:magic"),
+            (-99, "special:low"),
+            (-2, "special:high"),
+            (-1, "special:invalid"),
+        ] {
+            assert_eq!(
+                basic(id, name).is_special(),
+                workspace(id, name).is_special(),
+                "disagreement for id {id} name {name}"
+            );
+        }
     }
 }
 
