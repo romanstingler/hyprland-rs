@@ -176,10 +176,10 @@ pub enum Corner {
 #[derive(Debug, Clone, Display)]
 pub enum WorkspaceOptions {
     /// Makes all windows pseudo tiled
-    #[display("allfloat")]
+    #[display("allpseudo")]
     AllPseudo,
     /// Makes all windows float
-    #[display("allpseudo")]
+    #[display("allfloat")]
     AllFloat,
 }
 
@@ -1009,7 +1009,7 @@ macro_rules! dispatch {
 
 #[cfg(test)]
 mod tests {
-    use super::{DispatchType, Position, WindowIdentifier, gen_dispatch_str};
+    use super::{DispatchType, Position, WindowIdentifier, WorkspaceOptions, gen_dispatch_str};
 
     #[test]
     fn position_renders_both_axes() {
@@ -1066,6 +1066,34 @@ mod tests {
                     WindowIdentifier::ActiveWindow,
                 ),
                 "dispatch resizewindowpixel exact 10 20,activewindow",
+            ),
+        ];
+
+        for (dispatcher, expected) in cases {
+            let label = format!("{dispatcher:?}");
+            let Ok(generated) = gen_dispatch_str(dispatcher, true) else {
+                panic!("failed to generate a dispatch string for {label}");
+            };
+            assert_eq!(generated.data, expected);
+        }
+    }
+
+    #[test]
+    fn workspace_options_match_their_variant() {
+        assert_eq!(WorkspaceOptions::AllPseudo.to_string(), "allpseudo");
+        assert_eq!(WorkspaceOptions::AllFloat.to_string(), "allfloat");
+    }
+
+    #[test]
+    fn workspace_option_dispatcher_uses_the_matching_label() {
+        let cases = [
+            (
+                DispatchType::WorkspaceOption(WorkspaceOptions::AllPseudo),
+                "dispatch workspaceopt allpseudo",
+            ),
+            (
+                DispatchType::WorkspaceOption(WorkspaceOptions::AllFloat),
+                "dispatch workspaceopt allfloat",
             ),
         ];
 
